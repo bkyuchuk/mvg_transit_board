@@ -7,13 +7,13 @@
 
 ### Setup
 #### Prerequisites
-- You need to have Python installed and added to ´$PATH´ (e.g. 3.14.3)
+- You need to have Python installed and added to `$PATH` (e.g. 3.14.3)
 - You need to have Arduino IDE installed (e.g. 2.3.6)
 
 #### Arduino setup
 In order for Arduino to recognize your Waveshare ESP32 board you need to:
 - Let Arduino install all initial libraries
 - Connect the Waveshare board to your PC
-- Add ´https://dl.espressif.com/dl/package_esp32_index.json´ in _File/Preferences_ under _"Additional boards manager URLs"_
+- Add `https://dl.espressif.com/dl/package_esp32_index.json` in _File/Preferences_ under _"Additional boards manager URLs"_
 - Click on the _"Select Board"_ dropdown and from the _"Boards"_ dropdown choose _"ESP32 Dev Module"_ (it should now be active) and select your board USB connection under _"Ports"_
 
