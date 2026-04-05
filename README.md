@@ -26,4 +26,6 @@ In order for Arduino to recognize your Waveshare ESP32 board you need to:
 - Click on the _"Select Board"_ dropdown and from the _"Boards"_ dropdown choose _"ESP32 Dev Module"_ (it should now be active) and select your board USB connection under _"Ports"_
 
 #### APIs
-Since [MVG](https://www.mvg.de/) as of 05.04.2026 doesn't have an official public API, I am using the one from their app. For the quotes I am using [API Ninjas](https://api-ninjas.com/api/quotes).
+- Since [MVG](https://www.mvg.de/) as of 05.04.2026 doesn't have an official public API, I am using the one from their app
+- For the quotes I am using [API Ninjas](https://api-ninjas.com/api/quotes)
+- For e-paper display interaction I am using the newer [GxEPD2](https://github.com/ZinggJM/GxEPD2) library
