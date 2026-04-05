@@ -8,8 +8,9 @@ void setup() {
   SPI.begin(13, 12, 14, 15);
   display.init(115200); // Default 10ms reset pulse, since I have a bare panel with DESPI-C02
 
-  displayHelloWorld();
+  resetDisplay();
   
+  // Put the display to sleep to prevent voltage stress on the e-ink microcapsules
   display.hibernate();
 }
 
@@ -20,8 +21,7 @@ void loop() {
 const char HelloWorld[] = "Hello, world!";
 
 void displayHelloWorld() {
-  // Use landscape
-  display.setRotation(1);
+  display.setRotation(1); // Use landscape
   display.setFont(&FreeMonoBold9pt7b);
   display.setTextColor(GxEPD_BLACK);
 
@@ -41,4 +41,13 @@ void displayHelloWorld() {
     display.print(HelloWorld);
   }
   while (display.nextPage());
+}
+
+void resetDisplay() {
+  // Clear the buffer and make it white
+  display.setFullWindow();
+  display.fillScreen(GxEPD_WHITE);
+  
+  // Push the white buffer to the screen (false means full refresh, not partial)
+  display.display(false);
 }
