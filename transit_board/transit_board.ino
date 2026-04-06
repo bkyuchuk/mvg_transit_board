@@ -1,14 +1,23 @@
 #include <SPI.h>
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
 
 #include <GxEPD2_BW.h>
 #include <Fonts/FreeMonoBold9pt7b.h>
 #include "GxEPD2_display_selection.h"
 
+// WiFi Credentials
+const char ssid[] = "ssid;
+const char pass[] = "pass";
+
 void setup() {
-  SPI.begin(13, 12, 14, 15);
+  Serial.begin(115200);
+  delay(1000);
+
+  SPI.begin(13, 12, 14, 15); // Send data explicitly to pins 13, 12 and 14 since EPD is listening on those over SPI 
   display.init(115200); // Default 10ms reset pulse, since I have a bare panel with DESPI-C02
 
-  resetDisplay();
+  connectToWiFi();
   
   // Put the display to sleep to prevent voltage stress on the e-ink microcapsules
   display.hibernate();
@@ -51,3 +60,18 @@ void resetDisplay() {
   // Push the white buffer to the screen (false means full refresh, not partial)
   display.display(false);
 }
+
+void connectToWiFi() {
+  Serial.print("\nConnecting to WiFi");
+  WiFi.begin(ssid, pass);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi connected");
+}
+
+
+
