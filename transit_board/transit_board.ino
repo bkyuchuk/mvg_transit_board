@@ -15,8 +15,6 @@ const char* SSID = "ssid";
 const char* PASS = "pass";
 // NTP server
 const char* NTP_SERVER = "pool.ntp.org";
-// Germany CET/CEST
-const char* TZ = "CET-1CEST,M3.5.0,M10.5.0/3";
 // MVG Global Station IDs
 const char* HASENBERGL_ID = "de:09162:790";
 const char* FELDMOCHING_ID = "de:09162:320";
@@ -48,17 +46,13 @@ struct Departure {
 
     return result;
   }
-};
 
-/*
-* "Method" to Departure struct that adds a time to its array.
-* Maybe structs can have methods in Arduino?
-*/
-void addDepartureTime(Departure &departure, long long time) {
-  if (departure.count < 3) {
-    departure.times[departure.count++] = time;
+  void addDepartureTime(long long time) {
+    if (count < 3) {
+      times[count++] = time;
+    }
   }
-}
+};
 
 /*
 * Runs once on boot.
@@ -100,10 +94,10 @@ void connectToWiFi() {
 }
 
 /*
-* Syncs with an NTP server to get the timezone specific local time.
+* Syncs with an NTP server and updates the ESP32 local time.
 * Returns the local time in ms.
 */
-long long getLocalTimeMs(String timezone) {
+long long getLocalTimeMs() {
   configTime(0, 0, NTP_SERVER);
   Serial.println("\nWaiting for time sync...");
 
@@ -114,17 +108,8 @@ long long getLocalTimeMs(String timezone) {
   }
 
   Serial.println("\nTime synchronized!");
-  setTimezone(timezone);
 
-  time_t seconds = mktime(&timeinfo); // Convert to epoch (sec)
-
-  return (long long)seconds * 1000; // Convert to ms
-}
-
-void setTimezone(String timezone){
-  Serial.printf("Setting Timezone to %s\n", timezone.c_str());
-  setenv("TZ", timezone.c_str(), 1);
-  tzset();
+  return (long long)time(nullptr) * 1000;
 }
 
 /*
@@ -142,7 +127,6 @@ String fetchDepartures(const char* stationId, const uint16_t offset) {
   http.begin(client, url);
   
   int httpResponseCode = http.GET();
-  
   String payload = "{}"; 
   
   if (httpResponseCode > 0) {
@@ -182,7 +166,8 @@ Departure getDeparturesFor(const char* label, const char* station, const char* d
     if (strcmp(label, obj["label"]) == 0 && 
         strcmp(destination, obj["destination"]) == 0) {
           // There is an entry for our label and destination
-          addDepartureTime(resultDeparture, departureTime);
+          // Add departure time as difference in mins. 60000ms are in 1min
+          resultDeparture.addDepartureTime((departureTime - getLocalTimeMs()) / 60000);
         }
   }
 
