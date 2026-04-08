@@ -24,17 +24,22 @@ const char* MVG_URL = "https://www.mvg.de/api/bgw-pt/v3/departures";
 
 struct Departure {
   const char* label;
-  const char* station;
+  const char* stationId;
+  const char* shortStationName;
   const char* destination;
+  const char* shortDestinationName;
   long long times[3];
   uint8_t count = 0; // Acts as state to know how many times were added
 
+  /*
+  * Used for visualizing on serial monitor.
+  */
   String toString() const {
     String result = "";
 
     result += label;
     result += " @ ";
-    result += station;
+    result += stationId;
     result += " -> ";
     result += destination;
     result += ": ";
@@ -50,7 +55,30 @@ struct Departure {
   void addDepartureTime(long long time) {
     if (count < 3) {
       times[count++] = time;
+
+      // Simple sort
+      for (int i = 0; i < count - 1; i++) {
+        for (int j = i + 1; j < count; j++) {
+          if (times[j] < times[i]) {
+            long long temp = times[i];
+            times[i] = times[j];
+            times[j] = temp;
+          }
+        }
+      }
     }
+  }
+
+  /*
+  * Used to render the information on the EPD.
+  */
+  String toDisplayString() const {
+    String result = String(label) + " " + shortStationName + " > " + shortDestinationName + ": ";
+    for (int i = 0; i < count; i++) {
+      result += String(times[i]);
+      if (i < count - 1) result += ",";
+    }
+    return result;
   }
 };
 
@@ -65,12 +93,26 @@ void setup() {
   display.init(115200); // Default 10ms reset pulse, since I have a bare panel with DESPI-C02
 
   connectToWiFi();
+  syncWithNTP();
   
-  Departure u2 = getDeparturesFor("U2", HASENBERGL_ID, "Messestadt Ost");
-  Serial.println(u2.toString());
-  
+  Departure u2 = getDeparturesFor("U2", HASENBERGL_ID, "Hbgl", "Messestadt Ost", "Messtd.O.", 0);
+  Departure s1 = getDeparturesFor("S1", FELDMOCHING_ID, "Feldm.", "Freising", "Freis.", 0);
+  Departure u3 = getDeparturesFor("U3", SCHEIDPLATZ_ID, "Scheidplz", "Fürstenried West", "Fuerst.W", 0);
+
+  // Render to E-Paper
+  drawToDisplay(u2, s1, u3);
   // Put the display to sleep to prevent voltage stress on the e-ink microcapsules
   display.hibernate();
+
+  // Turn off WiFi to save power before sleeping
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+
+  // Sleep for 60sec (calculated in microseconds)
+  uint64_t sleepTime = 60 * 1000000ULL; 
+  Serial.println("Going to deep sleep for 60sec...");
+  esp_sleep_enable_timer_wakeup(sleepTime);
+  esp_deep_sleep_start();
 }
 
 /*
@@ -94,10 +136,10 @@ void connectToWiFi() {
 }
 
 /*
-* Syncs with an NTP server and updates the ESP32 local time.
-* Returns the local time in ms.
+* Syncs the time with an NTP server.
+* Updates the ESP32 current time.
 */
-long long getLocalTimeMs() {
+void syncWithNTP() {
   configTime(0, 0, NTP_SERVER);
   Serial.println("\nWaiting for time sync...");
 
@@ -108,7 +150,12 @@ long long getLocalTimeMs() {
   }
 
   Serial.println("\nTime synchronized!");
+}
 
+/*
+* Returns the current time in ms.
+*/
+long long getCurrentTimeMs() {
   return (long long)time(nullptr) * 1000;
 }
 
@@ -146,9 +193,24 @@ String fetchDepartures(const char* stationId, const uint16_t offset) {
 * and a destination (e.g. Messestadt Ost, etc.)
 * Returns a newly created Departure object.
 */
-Departure getDeparturesFor(const char* label, const char* station, const char* destination) {
-  Departure resultDeparture = {label, station, destination, {0, 0, 0}, 0};
-  String rawDepartures = fetchDepartures(station, 0);
+Departure getDeparturesFor(
+      const char* label,
+      const char* stationId,
+      const char* shortStationName,
+      const char* destination,
+      const char* shortDestinationName,
+      const uint16_t offset) {
+  Departure resultDeparture = {
+    label, 
+    stationId, 
+    shortStationName, 
+    destination, 
+    shortDestinationName, 
+    {0, 0, 0},
+    0
+  };
+
+  String rawDepartures = fetchDepartures(stationId, offset);
 
   DynamicJsonDocument doc(12288); // Reserve enough bytes for JSON response
   DeserializationError error = deserializeJson(doc, rawDepartures.c_str());
@@ -162,19 +224,53 @@ Departure getDeparturesFor(const char* label, const char* station, const char* d
   for (JsonObject obj : array) {
     if (!obj["label"] || !obj["destination"]) continue;
 
-    long long departureTime = obj["realtimeDepartureTime"]; // With possible delay
+    long long departureTime = obj["realtimeDepartureTime"]; // Time in ms with possible delay
     if (strcmp(label, obj["label"]) == 0 && 
         strcmp(destination, obj["destination"]) == 0) {
-          // There is an entry for our label and destination
-          // Add departure time as difference in mins. 60000ms are in 1min
-          resultDeparture.addDepartureTime((departureTime - getLocalTimeMs()) / 60000);
-        }
+      // There is an entry for our label (U2 etc.) and destination
+      uint8_t departureInMin = (departureTime - getCurrentTimeMs()) / 60000; // 60000ms are in 1min
+      // Only look at departures less than 1h away
+      if (departureInMin < 60) {
+        // Add departure time as diff in mins.
+        resultDeparture.addDepartureTime(departureInMin);
+      }
+    }
   }
 
   return resultDeparture;
 }
 
+/*
+* Draws the formatted departures to the Waveshare e-paper.
+*/
+void drawToDisplay(const Departure& d1, const Departure& d2, const Departure& d3) {
+  display.setRotation(1); // 1 = Landscape
+  display.setFont(&FreeMonoBold9pt7b);
+  display.setTextColor(GxEPD_BLACK);
 
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(GxEPD_WHITE);
+
+    int16_t startX = 5;
+    int16_t startY = 20; 
+    int16_t lineSpacing = 35;
+
+    // Line 1
+    display.setCursor(startX, startY);
+    display.print(d1.toDisplayString());
+
+    // Line 2
+    display.setCursor(startX, startY + lineSpacing);
+    display.print(d2.toDisplayString());
+
+    // Line 3
+    display.setCursor(startX, startY + (lineSpacing * 2));
+    display.print(d3.toDisplayString());
+
+  } while (display.nextPage());
+}
 
 
 
