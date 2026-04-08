@@ -8,6 +8,7 @@
 
 #include <GxEPD2_BW.h>
 #include <Fonts/FreeMonoBold9pt7b.h>
+#include <Fonts/FreeMono9pt7b.h>
 #include "GxEPD2_display_selection.h"
 
 // WiFi Credentials
@@ -73,7 +74,7 @@ struct Departure {
   * Used to render the information on the EPD.
   */
   String toDisplayString() const {
-    String result = String(label) + " " + shortStationName + " > " + shortDestinationName + ": ";
+    String result = String(label) + " " + shortStationName + ">" + shortDestinationName + ":";
     for (int i = 0; i < count; i++) {
       result += String(times[i]);
       if (i < count - 1) result += ",";
@@ -95,9 +96,9 @@ void setup() {
   connectToWiFi();
   syncWithNTP();
   
-  Departure u2 = getDeparturesFor("U2", HASENBERGL_ID, "Hbgl", "Messestadt Ost", "Messtd.O.", 0);
-  Departure s1 = getDeparturesFor("S1", FELDMOCHING_ID, "Feldm.", "Freising", "Freis.", 0);
-  Departure u3 = getDeparturesFor("U3", SCHEIDPLATZ_ID, "Scheidplz", "Fürstenried West", "Fuerst.W", 0);
+  Departure u2 = getDeparturesFor("U2", HASENBERGL_ID, "Hbgl", "Messestadt Ost", "Msstd.O", 0);
+  Departure s1 = getDeparturesFor("S1", FELDMOCHING_ID, "Feldm", "Freising", "Freis", 0);
+  Departure u3 = getDeparturesFor("U3", SCHEIDPLATZ_ID, "Schdplz", "Fürstenried West", "Frst.W", 0);
 
   // Render to E-Paper
   drawToDisplay(u2, s1, u3);
@@ -229,8 +230,8 @@ Departure getDeparturesFor(
         strcmp(destination, obj["destination"]) == 0) {
       // There is an entry for our label (U2 etc.) and destination
       uint8_t departureInMin = (departureTime - getCurrentTimeMs()) / 60000; // 60000ms are in 1min
-      // Only look at departures less than 1h away
-      if (departureInMin < 60) {
+      // Only look at departures that are not at the moment and are less than 1h in the future
+      if (departureInMin < 60 && departureInMin > 0) {
         // Add departure time as diff in mins.
         resultDeparture.addDepartureTime(departureInMin);
       }
@@ -245,7 +246,7 @@ Departure getDeparturesFor(
 */
 void drawToDisplay(const Departure& d1, const Departure& d2, const Departure& d3) {
   display.setRotation(1); // 1 = Landscape
-  display.setFont(&FreeMonoBold9pt7b);
+  display.setFont(&FreeMono9pt7b);
   display.setTextColor(GxEPD_BLACK);
 
   display.setFullWindow();
@@ -253,8 +254,8 @@ void drawToDisplay(const Departure& d1, const Departure& d2, const Departure& d3
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    int16_t startX = 5;
-    int16_t startY = 20; 
+    int16_t startX = 0;
+    int16_t startY = 10; 
     int16_t lineSpacing = 35;
 
     // Line 1
