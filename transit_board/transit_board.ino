@@ -22,6 +22,7 @@ const char* FELDMOCHING_ID = "de:09162:320";
 const char* SCHEIDPLATZ_ID = "de:09162:400";
 // Use globalId=... for starting station and offset=30 for 30min in the future
 const char* MVG_URL = "https://www.mvg.de/api/bgw-pt/v3/departures";
+const char* QUOTE_URL = "https://api.quotable.io/random?maxLength=22";
 
 struct Departure {
   const char* label;
@@ -99,9 +100,10 @@ void setup() {
   Departure u2 = getDeparturesFor("U2", HASENBERGL_ID, "Hbgl", "Messestadt Ost", "Msstd.O", 0);
   Departure s1 = getDeparturesFor("S1", FELDMOCHING_ID, "Feldm", "Freising", "Freis", 0);
   Departure u3 = getDeparturesFor("U3", SCHEIDPLATZ_ID, "Schplz", "Fürstenried West", "Frst.W", 0);
+  String quote = fetchQuote();
 
   // Render to E-Paper
-  drawToDisplay(u2, s1, u3);
+  drawToDisplay(u2, s1, u3, quote);
   // Put the display to sleep to prevent voltage stress on the e-ink microcapsules
   display.hibernate();
 
@@ -242,29 +244,61 @@ Departure getDeparturesFor(
 }
 
 /*
-* If the given departureTimeU2 is <2min compared to at least one of the U3 times,
-* we can switch U2>U3 at Scheidplatz.
+* Fetches and parses a random short quote from Quotable.
+* Returns the parsed quote.
 */
-bool canSwitchToU3(u_int8_t departureTimeU2, const Departure& u3) {
-  for (uint8_t i=0; i<u3.count; i++) {
-    uint8_t diff = abs((departureTimeU2 + 9) - u3.times[i]);
-    if (diff < 2) return true;
+String fetchQuote() {
+  WiFiClientSecure client;
+  HTTPClient http;
+  String quote = "Simo is awesome!";
+
+  client.setInsecure(); // Disable certificate validation
+
+  http.begin(client, QUOTE_URL);
+  int httpResponseCode = http.GET();
+
+  if (httpResponseCode > 0) {
+    String payload = http.getString();
+
+    DynamicJsonDocument doc(2048);
+    DeserializationError error = deserializeJson(doc, payload);
+
+    if (!error) {
+      quote = doc["content"].as<String>();
+    } else {
+      Serial.println("Parsing quote JSON failed!");
+    }
+  } else {
+    Serial.print("Quote API error: ");
+    Serial.print(httpResponseCode);
   }
 
-  return false;
+  http.end();
+  return quote;
 }
 
-/*
-* If the given departureTimeU3 is <2min compared to at least one of the U2 times,
-* we can switch U3>U2 at Scheidplatz.
-*/
-bool canSwitchToU2(u_int8_t departureTimeU3, const Departure& u2) {
-  for (uint8_t i=0; i<u2.count; i++) {
-    uint8_t diff = abs((departureTimeU3 - 9) - u2.times[i]);
-    if (diff < 2) return true;
+bool canSwitchLine(u_int8_t departureTime, const Departure& departure) {
+  if (departure.label == "U3") {
+    /*
+    * If the given departureTime for U2 is <2min compared to at least one of the U3 times,
+    * we can switch U2>U3 at Scheidplatz.
+    */
+    for (uint8_t i=0; i<departure.count; i++) {
+      uint8_t diff = abs((departureTime + 9) - departure.times[i]);
+      if (diff < 2) return true;
+    }
+    return false;
+  } else {
+    /*
+    * If the given departureTime for U3 is <2min compared to at least one of the U2 times,
+    * we can switch U3>U2 at Scheidplatz.
+    */
+    for (uint8_t i=0; i<departure.count; i++) {
+      uint8_t diff = abs((departureTime - 9) - departure.times[i]);
+      if (diff < 2) return true;
+    }
+    return false;
   }
-
-  return false;
 }
 
 void drawDeparture(
@@ -294,8 +328,7 @@ void drawDeparture(
     bool toHighlight = false;
 
     if (shouldHighlight) {
-      toHighlight = canSwitchToU3(departure.times[i], departureToCompare)
-             || canSwitchToU2(departure.times[i], departureToCompare);
+      toHighlight = canSwitchLine(departure.times[i], departureToCompare);
     }
 
     display.setCursor(x, y);
@@ -315,7 +348,7 @@ void drawDeparture(
 /*
 * Draws the formatted departures to the Waveshare e-paper.
 */
-void drawToDisplay(const Departure& u2, const Departure& s1, const Departure& u3) {
+void drawToDisplay(const Departure& u2, const Departure& s1, const Departure& u3, const String& quote) {
   display.setRotation(1); // 1 = Landscape
   display.setFont(&FreeMono9pt7b);
   display.setTextColor(GxEPD_BLACK);
@@ -339,9 +372,16 @@ void drawToDisplay(const Departure& u2, const Departure& s1, const Departure& u3
     // Draw U3 and compare its times with U2
     drawDeparture(startY + lineSpacing * 2, u3, u2, true);
 
+    // Draw horizontal separator line
+    u_int8_t separatorY = startY + lineSpacing * 2 + 25;
+    display.drawLine(0, separatorY, display.width(), separatorY, GxEPD_BLACK);
+
+    // Draw the quote
+    display.setFont(&FreeMono9pt7b);
+    display.setCursor(0, separatorY + 15);
+    display.print(quote);
   } while (display.nextPage());
 }
-
 
 
 
