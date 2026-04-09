@@ -372,13 +372,9 @@ void drawToDisplay(const Departure& u2, const Departure& s1, const Departure& u3
     // Draw U3 and compare its times with U2
     drawDeparture(startY + lineSpacing * 2, u3, u2, true);
 
-    // Draw horizontal separator line
-    u_int8_t separatorY = startY + lineSpacing * 2 + 25;
-    display.drawLine(0, separatorY, display.width(), separatorY, GxEPD_BLACK);
-
     // Draw the quote
     display.setFont(&FreeMono9pt7b);
-    display.setCursor(0, separatorY + 15);
+    display.setCursor(0, startY + lineSpacing * 2 + 40);
     display.print(quote);
   } while (display.nextPage());
 }
