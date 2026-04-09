@@ -1,3 +1,7 @@
+| Hello, world! | Finished |
+|---------|---------|
+| ![Hello, world!](/images/hello-world.jpg) | ![Finished board](/images/finished.jpg) |
+
 ### Introduction
 The idea is simple. The transit board should display in how many minutes the U2, S1 and U3 depart from specific stations. In my case I want to:
 - know when the next three U2 depart from Hasenbergl towards Messestadt Ost
