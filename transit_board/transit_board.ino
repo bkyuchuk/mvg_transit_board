@@ -22,7 +22,7 @@ const char* FELDMOCHING_ID = "de:09162:320";
 const char* SCHEIDPLATZ_ID = "de:09162:400";
 // Use globalId=... for starting station and offset=30 for 30min in the future
 const char* MVG_URL = "https://www.mvg.de/api/bgw-pt/v3/departures";
-const char* QUOTE_URL = "https://api.quotable.io/random?maxLength=22";
+const char* QUOTE_URL = "https://api.quotable.io/random?maxLength=38";
 
 struct Departure {
   const char* label;
@@ -374,7 +374,7 @@ void drawToDisplay(const Departure& u2, const Departure& s1, const Departure& u3
 
     // Draw the quote
     display.setFont(&FreeMono9pt7b);
-    display.setCursor(0, startY + lineSpacing * 2 + 40);
+    display.setCursor(0, startY + lineSpacing * 2 + 20);
     display.print(quote);
   } while (display.nextPage());
 }
