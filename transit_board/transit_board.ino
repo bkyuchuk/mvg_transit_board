@@ -74,7 +74,7 @@ struct Departure {
   * Used to render the information on the EPD.
   */
   String toDisplayString() const {
-    String result = String(label) + " " + shortStationName + ">" + shortDestinationName + ":";
+    String result = String(label) + " " + shortStationName + ">" + shortDestinationName + ": ";
     for (int i = 0; i < count; i++) {
       result += String(times[i]);
       if (i < count - 1) result += ",";
@@ -98,7 +98,7 @@ void setup() {
   
   Departure u2 = getDeparturesFor("U2", HASENBERGL_ID, "Hbgl", "Messestadt Ost", "Msstd.O", 0);
   Departure s1 = getDeparturesFor("S1", FELDMOCHING_ID, "Feldm", "Freising", "Freis", 0);
-  Departure u3 = getDeparturesFor("U3", SCHEIDPLATZ_ID, "Schdplz", "Fürstenried West", "Frst.W", 0);
+  Departure u3 = getDeparturesFor("U3", SCHEIDPLATZ_ID, "Schplz", "Fürstenried West", "Frst.W", 0);
 
   // Render to E-Paper
   drawToDisplay(u2, s1, u3);
@@ -242,9 +242,80 @@ Departure getDeparturesFor(
 }
 
 /*
+* If the given departureTimeU2 is <2min compared to at least one of the U3 times,
+* we can switch U2>U3 at Scheidplatz.
+*/
+bool canSwitchToU3(u_int8_t departureTimeU2, const Departure& u3) {
+  for (uint8_t i=0; i<u3.count; i++) {
+    uint8_t diff = abs((departureTimeU2 + 9) - u3.times[i]);
+    if (diff < 2) return true;
+  }
+
+  return false;
+}
+
+/*
+* If the given departureTimeU3 is <2min compared to at least one of the U2 times,
+* we can switch U3>U2 at Scheidplatz.
+*/
+bool canSwitchToU2(u_int8_t departureTimeU3, const Departure& u2) {
+  for (uint8_t i=0; i<u2.count; i++) {
+    uint8_t diff = abs((departureTimeU3 - 9) - u2.times[i]);
+    if (diff < 2) return true;
+  }
+
+  return false;
+}
+
+void drawDeparture(
+    u_int8_t y, 
+    const Departure& departure, 
+    const Departure& departureToCompare,
+    bool shouldHighlight = false) {
+  u_int8_t x = 0;
+  // Draw the label (e.g. U2) with bold font
+  display.setCursor(x, y);
+  display.setFont(&FreeMonoBold9pt7b);
+  display.print(departure.label);
+
+  x += 25; // Fixed spacing
+
+  // Draw station and destination names with normal font
+  display.setFont(&FreeMono9pt7b);
+  display.setCursor(x, y);
+  display.print(departure.shortStationName);
+  display.print(">");
+  display.print(departure.shortDestinationName);
+
+  x += 147;
+
+  // Draw the times in normal and possible U2->U3 switch in bold font 
+  for (u_int8_t i=0; i<departure.count; i++) {
+    bool toHighlight = false;
+
+    if (shouldHighlight) {
+      toHighlight = canSwitchToU3(departure.times[i], departureToCompare)
+             || canSwitchToU2(departure.times[i], departureToCompare);
+    }
+
+    display.setCursor(x, y);
+
+    if (toHighlight) {
+      display.setFont(&FreeMonoBold9pt7b);
+    } else {
+      display.setFont(&FreeMono9pt7b);
+    }
+
+    display.print(departure.times[i]);
+
+    x += 25; // Spacing between lines
+  }
+}
+
+/*
 * Draws the formatted departures to the Waveshare e-paper.
 */
-void drawToDisplay(const Departure& d1, const Departure& d2, const Departure& d3) {
+void drawToDisplay(const Departure& u2, const Departure& s1, const Departure& u3) {
   display.setRotation(1); // 1 = Landscape
   display.setFont(&FreeMono9pt7b);
   display.setTextColor(GxEPD_BLACK);
@@ -254,21 +325,19 @@ void drawToDisplay(const Departure& d1, const Departure& d2, const Departure& d3
   do {
     display.fillScreen(GxEPD_WHITE);
 
-    int16_t startX = 0;
     int16_t startY = 10; 
-    int16_t lineSpacing = 35;
+    int16_t lineSpacing = 30;
 
-    // Line 1
-    display.setCursor(startX, startY);
-    display.print(d1.toDisplayString());
+    // Draw U2 and compare its times with U3 
+    drawDeparture(startY, u2, u3, true);
 
-    // Line 2
-    display.setCursor(startX, startY + lineSpacing);
-    display.print(d2.toDisplayString());
+    // Draw S1
+    // Note: Even though u3 is passed, the comparison of its 
+    // times is ignored because shouldHighlight == false 
+    drawDeparture(startY + lineSpacing, s1, u3, false);
 
-    // Line 3
-    display.setCursor(startX, startY + (lineSpacing * 2));
-    display.print(d3.toDisplayString());
+    // Draw U3 and compare its times with U2
+    drawDeparture(startY + lineSpacing * 2, u3, u2, true);
 
   } while (display.nextPage());
 }
